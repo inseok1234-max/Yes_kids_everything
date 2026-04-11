@@ -7,13 +7,14 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @TypeConverters(Converters::class)
 @Database(
-    entities = [Memo::class],
-    version = 6,
+    entities = [Memo::class, Restaurant::class],
+    version = 7,
     exportSchema = false
 )
 abstract class MemoDatabase : RoomDatabase() {
 
     abstract fun memoDao(): MemoDao
+    abstract fun restaurantDao(): RestaurantDao
 
     companion object {
         @Volatile
