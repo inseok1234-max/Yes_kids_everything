@@ -1,67 +1,56 @@
 package com.ois.stickymemo.viewmodel
 
 import android.app.Application
-import androidx.lifecycle.*
-import com.ois.stickymemo.data.*
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.ois.stickymemo.data.Memo
+import com.ois.stickymemo.data.MemoDatabase
+import com.ois.stickymemo.data.MemoRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class MemoViewModel(application: Application) : AndroidViewModel(application) {
+    private val repository = MemoRepository(
+        MemoDatabase.getDatabase(application).memoDao()
+    )
 
-    private val dao = MemoDatabase.getDatabase(application).memoDao()
-
-    // 전체 메모 목록
-    val allMemos = dao.getAllMemos()
+    val allMemos = repository.allMemos
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // 타입별 메모
-    val checklistMemos = dao.getMemosByType(MemoType.CHECKLIST)
+    val checklistMemos = repository.checklistMemos
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val locationMemos = dao.getMemosByType(MemoType.LOCATION)
+    val locationMemos = repository.locationMemos
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val callMemos = dao.getMemosByType(MemoType.CALL)
+    val callMemos = repository.callMemos
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // 메모 저장
     fun insertMemo(memo: Memo) = viewModelScope.launch {
-        dao.insertMemo(memo)
+        repository.insertMemo(memo)
     }
 
-    // 메모 수정
     fun updateMemo(memo: Memo) = viewModelScope.launch {
-        dao.updateMemo(memo)
+        repository.updateMemo(memo)
     }
 
-    // 메모 삭제
     fun deleteMemo(memo: Memo) = viewModelScope.launch {
-        dao.deleteMemo(memo)
+        repository.deleteMemo(memo)
     }
 
-    // 완료 메모 전체 삭제
     fun deleteCompletedMemos() = viewModelScope.launch {
-        dao.deleteCompletedMemos()
+        repository.deleteCompletedMemos()
     }
 
-    // 즐겨찾기 토글
     fun togglePin(memo: Memo) = viewModelScope.launch {
-        dao.updateMemo(memo.copy(isPinned = !memo.isPinned))
+        repository.togglePin(memo)
     }
 
-    // 메모 복제
     fun duplicateMemo(memo: Memo) = viewModelScope.launch {
-        val now = System.currentTimeMillis()
-        dao.insertMemo(
-            memo.copy(
-                id = 0,
-                title = memo.title + " (복사)",
-                createdAt = now,
-                updatedAt = now,
-                isPinned = false
-            )
-        )
+        repository.duplicateMemo(memo)
     }
 }
 

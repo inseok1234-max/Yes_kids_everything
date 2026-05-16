@@ -1,38 +1,49 @@
 package com.ois.stickymemo.viewmodel
 
 import android.app.Application
-import androidx.lifecycle.*
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import com.ois.stickymemo.data.MemoDatabase
 import com.ois.stickymemo.data.Restaurant
-import kotlinx.coroutines.flow.*
+import com.ois.stickymemo.data.RestaurantRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 enum class RestaurantSortOrder {
-    LATEST, RATING
+    LATEST,
+    RATING
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class RestaurantViewModel(application: Application) : AndroidViewModel(application) {
+    private val repository = RestaurantRepository(
+        MemoDatabase.getDatabase(application).restaurantDao()
+    )
 
-    private val dao = MemoDatabase.getDatabase(application).restaurantDao()
-
-    // 정렬 상태
     private val _sortOrder = MutableStateFlow(RestaurantSortOrder.LATEST)
     val sortOrder: StateFlow<RestaurantSortOrder> = _sortOrder
 
-    // 선택된 태그 필터
     private val _selectedTag = MutableStateFlow<String?>(null)
     val selectedTag: StateFlow<String?> = _selectedTag
 
-    // 정렬 + 필터 조합된 최종 목록
     val restaurants: StateFlow<List<Restaurant>> = combine(
         _sortOrder,
         _selectedTag
-    ) { sort, tag -> Pair(sort, tag) }
+    ) { sort, tag -> sort to tag }
         .flatMapLatest { (sort, tag) ->
             when {
-                tag != null -> dao.getRestaurantsByTag(tag)
-                sort == RestaurantSortOrder.RATING -> dao.getRestaurantsByRating()
-                else -> dao.getAllRestaurants()
+                tag != null -> repository.getRestaurantsByTag(tag)
+                sort == RestaurantSortOrder.RATING -> repository.getRestaurantsByRating()
+                else -> repository.getAllRestaurants()
             }
         }
         .stateIn(
@@ -41,8 +52,7 @@ class RestaurantViewModel(application: Application) : AndroidViewModel(applicati
             initialValue = emptyList()
         )
 
-    // 전체 태그 목록 (중복 제거)
-    val allTags: StateFlow<List<String>> = dao.getAllTags()
+    val allTags: StateFlow<List<String>> = repository.getAllTags()
         .map { tagStrings ->
             tagStrings
                 .flatMap { it.split(",") }
@@ -66,15 +76,15 @@ class RestaurantViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun insertRestaurant(restaurant: Restaurant) {
-        viewModelScope.launch { dao.insertRestaurant(restaurant) }
+        viewModelScope.launch { repository.insertRestaurant(restaurant) }
     }
 
     fun updateRestaurant(restaurant: Restaurant) {
-        viewModelScope.launch { dao.updateRestaurant(restaurant) }
+        viewModelScope.launch { repository.updateRestaurant(restaurant) }
     }
 
     fun deleteRestaurant(restaurant: Restaurant) {
-        viewModelScope.launch { dao.deleteRestaurant(restaurant) }
+        viewModelScope.launch { repository.deleteRestaurant(restaurant) }
     }
 }
 

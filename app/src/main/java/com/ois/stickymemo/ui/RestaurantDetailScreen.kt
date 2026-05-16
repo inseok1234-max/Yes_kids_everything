@@ -198,9 +198,9 @@ fun RestaurantDetailScreen(
                 }
             }
 
-            // ── 레시피 ──
+            // ── 관련 URL ──
             if (restaurant.recipeUrl.isNotBlank()) {
-                DetailSection(title = "레시피") {
+                DetailSection(title = "관련 URL") {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
@@ -221,7 +221,7 @@ fun RestaurantDetailScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = restaurant.recipeTitle.ifBlank { "레시피 보기" },
+                                    text = restaurant.recipeTitle.ifBlank { "관련 링크 보기" },
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 14.sp
                                 )

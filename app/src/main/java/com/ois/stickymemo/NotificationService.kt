@@ -1,13 +1,16 @@
 package com.ois.stickymemo
 
-import android.app.*
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 
 class NotificationService : Service() {
-
     companion object {
         const val CHANNEL_ID = "sticky_memo_service"
         const val NOTIFICATION_ID = 1001
@@ -34,27 +37,28 @@ class NotificationService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "StickyMemo 위치 감지",
+                getString(R.string.notification_channel_location_name),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "위치 기반 메모 알림을 위해 실행 중입니다"
+                description = getString(R.string.notification_channel_location_description)
                 setShowBadge(false)
             }
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
     }
 
     private fun buildNotification(): Notification {
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
+            this,
+            0,
+            intent,
             PendingIntent.FLAG_IMMUTABLE
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("StickyMemo 실행 중")
-            .setContentText("위치 기반 메모를 감지하고 있습니다")
+            .setContentTitle(getString(R.string.notification_service_title))
+            .setContentText(getString(R.string.notification_service_text))
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pendingIntent)
             .setOngoing(true)

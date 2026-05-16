@@ -145,6 +145,7 @@ fun memoTypeLabel(type: MemoType): String = when (type) {
 fun MemoListScreen(
     memos: List<Memo>,
     isDarkTheme: Boolean = false,
+    showFab: Boolean = true,
     onToggleDarkTheme: () -> Unit = {},
     onAddMemo: (MemoType) -> Unit,
     onMemoClick: (Memo) -> Unit,
@@ -255,7 +256,7 @@ fun MemoListScreen(
         },
         containerColor = bgColor,
         floatingActionButton = {
-            FloatingActionButton(
+            if (showFab) FloatingActionButton(
                 onClick = {
                     val type = when (selectedTab) {
                         2 -> MemoType.CHECKLIST

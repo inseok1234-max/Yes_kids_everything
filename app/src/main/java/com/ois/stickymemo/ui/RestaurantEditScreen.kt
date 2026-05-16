@@ -29,8 +29,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
 import coil.compose.AsyncImage
 import com.ois.stickymemo.data.Restaurant
 
@@ -82,7 +80,7 @@ fun RestaurantEditScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = if (isEdit) "맛집 수정" else "맛집 추가",
+                        text = if (isEdit) "장소 수정" else "장소 추가",
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -120,11 +118,11 @@ fun RestaurantEditScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
 
-            // ── 식당명 ──
+            // ── 장소명 ──
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("식당명 *") },
+                label = { Text("장소명 *") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
@@ -347,23 +345,23 @@ fun RestaurantEditScreen(
                 }
             }
 
-            // ── 레시피 ──
+            // ── 관련 URL ──
             Column {
                 Text(
-                    "레시피",
+                    "관련 URL",
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    "다른 앱(만개의레시피, 네이버 등)에서 공유 버튼 → StickyMemo 선택",
+                    "지도, 블로그, 예약 페이지 등 나중에 다시 볼 링크를 저장합니다.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
                 if (recipeUrl.isNotBlank()) {
-                    // 레시피 카드
+                    // 관련 URL 카드
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
@@ -384,7 +382,7 @@ fun RestaurantEditScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    recipeTitle.ifBlank { "레시피 링크" },
+                                    recipeTitle.ifBlank { "관련 링크" },
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 14.sp,
                                     maxLines = 1
@@ -415,7 +413,7 @@ fun RestaurantEditScreen(
                     OutlinedTextField(
                         value = recipeUrl,
                         onValueChange = { recipeUrl = it },
-                        label = { Text("레시피 URL (직접 입력)") },
+                        label = { Text("관련 URL (직접 입력)") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         trailingIcon = {

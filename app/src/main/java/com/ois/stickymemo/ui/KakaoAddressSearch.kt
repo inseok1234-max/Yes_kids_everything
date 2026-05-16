@@ -1,5 +1,6 @@
 package com.ois.stickymemo.ui
 
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,6 +20,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import com.ois.stickymemo.BuildConfig
+import com.ois.stickymemo.R
 import org.json.JSONObject
 
 data class AddressResult(
@@ -29,13 +32,19 @@ data class AddressResult(
 )
 
 suspend fun searchAddress(query: String): List<AddressResult> {
+    val apiKey = BuildConfig.KAKAO_REST_API_KEY
+    if (apiKey.isBlank()) {
+        android.util.Log.w("KakaoSearch", "Kakao REST API key is not configured.")
+        return emptyList()
+    }
+
     return withContext(Dispatchers.IO) {
         try {
             val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
             val client = OkHttpClient()
             val request = Request.Builder()
                 .url("https://dapi.kakao.com/v2/local/search/keyword.json?query=$encodedQuery")
-                .addHeader("Authorization", "KakaoAK 8fcc428adfb5b5b874e6ea9723a40554")
+                .addHeader("Authorization", "KakaoAK $apiKey")
                 .build()
             val response = client.newCall(request).execute()
             val responseCode = response.code
@@ -81,10 +90,13 @@ fun AddressSearchDialog(
     var isLoading by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
+    val isSearchEnabled = BuildConfig.KAKAO_REST_API_KEY.isNotBlank()
+    val disabledMessage = stringResource(R.string.address_search_disabled)
+    val noResultsMessage = stringResource(R.string.address_search_no_results)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("주소 검색", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(R.string.address_search_title), fontWeight = FontWeight.Bold) },
         text = {
             Column {
                 Row(
@@ -94,24 +106,37 @@ fun AddressSearchDialog(
                     OutlinedTextField(
                         value = searchText,
                         onValueChange = { searchText = it },
-                        label = { Text("주소 또는 장소명 입력") },
+                        label = { Text(stringResource(R.string.address_search_label)) },
                         modifier = Modifier.weight(1f),
                         singleLine = true
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     IconButton(onClick = {
+                        if (!isSearchEnabled) {
+                            errorMsg = disabledMessage
+                            return@IconButton
+                        }
                         if (searchText.isNotBlank()) {
                             scope.launch {
                                 isLoading = true
                                 errorMsg = ""
                                 results = searchAddress(searchText)
                                 isLoading = false
-                                if (results.isEmpty()) errorMsg = "검색 결과가 없습니다"
+                                if (results.isEmpty()) errorMsg = noResultsMessage
                             }
                         }
-                    }) {
-                        Icon(Icons.Default.Search, contentDescription = "검색")
+                    }, enabled = searchText.isNotBlank()) {
+                        Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search))
                     }
+                }
+
+                if (!isSearchEnabled) {
+                    Text(
+                        disabledMessage,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                } else {
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -160,7 +185,7 @@ fun AddressSearchDialog(
         confirmButton = {},
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("취소")
+                Text(stringResource(R.string.cancel))
             }
         }
     )

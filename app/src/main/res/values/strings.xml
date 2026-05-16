@@ -1,3 +1,23 @@
 <resources>
     <string name="app_name">StickyMemo</string>
+    <string name="tab_memo">메모</string>
+    <string name="tab_restaurant">장소</string>
+    <string name="shared_recipe_title">공유된 링크</string>
+    <string name="current_location_format">현재 위치 (%1$s, %2$s)</string>
+    <string name="search">검색</string>
+    <string name="cancel">취소</string>
+    <string name="address_search_title">주소 검색</string>
+    <string name="address_search_label">주소 또는 장소명 입력</string>
+    <string name="address_search_no_results">검색 결과가 없습니다</string>
+    <string name="address_search_disabled">Kakao REST API 키가 없어 주소 검색을 사용할 수 없습니다.</string>
+    <string name="notification_channel_location_name">StickyMemo 위치 감지</string>
+    <string name="notification_channel_location_description">위치 기반 메모 알림을 위해 실행 중입니다.</string>
+    <string name="notification_service_title">StickyMemo 실행 중</string>
+    <string name="notification_service_text">위치 기반 메모를 감지하고 있습니다.</string>
+    <string name="call_memo_default_title">통화 메모</string>
+    <string name="call_memo_overlay_title">통화 메모</string>
+    <string name="close">닫기</string>
+    <string name="memo_input_hint">메모 입력...</string>
+    <string name="save">저장</string>
+    <string name="widget_quick_capture_description">StickyMemo 빠른 기록 위젯</string>
 </resources>
