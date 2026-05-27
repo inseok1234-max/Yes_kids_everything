@@ -13,6 +13,10 @@ val localProperties = Properties().apply {
         localPropertiesFile.inputStream().use(::load)
     }
 }
+val kakaoRestApiKey = localProperties
+    .getProperty("KAKAO_REST_API_KEY", "")
+    .trim()
+    .trim('"')
 
 android {
     namespace = "com.ois.stickymemo"
@@ -28,7 +32,7 @@ android {
         buildConfigField(
             "String",
             "KAKAO_REST_API_KEY",
-            "\"${localProperties.getProperty("KAKAO_REST_API_KEY", "")}\""
+            "\"$kakaoRestApiKey\""
         )
     }
 

@@ -1,28 +1,52 @@
 package com.ois.stickymemo.ui
 
-import androidx.compose.ui.res.stringResource
+import android.util.Log
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ois.stickymemo.BuildConfig
+import com.ois.stickymemo.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import com.ois.stickymemo.BuildConfig
-import com.ois.stickymemo.R
 import org.json.JSONObject
+import java.io.IOException
+
+private const val KAKAO_SEARCH_TAG = "KakaoSearch"
 
 data class AddressResult(
     val name: String,
@@ -32,49 +56,67 @@ data class AddressResult(
 )
 
 suspend fun searchAddress(query: String): List<AddressResult> {
-    val apiKey = BuildConfig.KAKAO_REST_API_KEY
+    val apiKey = BuildConfig.KAKAO_REST_API_KEY.trim()
     if (apiKey.isBlank()) {
-        android.util.Log.w("KakaoSearch", "Kakao REST API key is not configured.")
+        Log.w(KAKAO_SEARCH_TAG, "API key missing: BuildConfig.KAKAO_REST_API_KEY is blank.")
         return emptyList()
     }
 
     return withContext(Dispatchers.IO) {
         try {
             val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
-            val client = OkHttpClient()
             val request = Request.Builder()
                 .url("https://dapi.kakao.com/v2/local/search/keyword.json?query=$encodedQuery")
                 .addHeader("Authorization", "KakaoAK $apiKey")
                 .build()
-            val response = client.newCall(request).execute()
-            val responseCode = response.code
-            android.util.Log.d("KakaoSearch", "응답코드: $responseCode")
 
-            if (!response.isSuccessful) {
-                val errorBody = response.body?.string()
-                android.util.Log.e("KakaoSearch", "에러: $errorBody")
-                return@withContext emptyList()
+            OkHttpClient().newCall(request).execute().use { response ->
+                when (response.code) {
+                    401, 403 -> {
+                        Log.w(KAKAO_SEARCH_TAG, "Authorization failed: HTTP ${response.code}. Check Kakao REST API key.")
+                        return@withContext emptyList()
+                    }
+                }
+
+                if (!response.isSuccessful) {
+                    Log.w(KAKAO_SEARCH_TAG, "Search failed: HTTP ${response.code}.")
+                    return@withContext emptyList()
+                }
+
+                val body = response.body?.string()
+                if (body.isNullOrBlank()) {
+                    Log.d(KAKAO_SEARCH_TAG, "Search returned an empty response body.")
+                    return@withContext emptyList()
+                }
+
+                val documents = try {
+                    JSONObject(body).getJSONArray("documents")
+                } catch (parseError: Exception) {
+                    Log.w(KAKAO_SEARCH_TAG, "Parse failure while reading Kakao search response.", parseError)
+                    return@withContext emptyList()
+                }
+
+                if (documents.length() == 0) {
+                    Log.d(KAKAO_SEARCH_TAG, "Search completed with empty result.")
+                }
+
+                List(documents.length()) { i ->
+                    val doc = documents.getJSONObject(i)
+                    AddressResult(
+                        name = doc.getString("place_name"),
+                        address = doc.optString("road_address_name").ifEmpty {
+                            doc.getString("address_name")
+                        },
+                        lat = doc.getString("y").toDouble(),
+                        lng = doc.getString("x").toDouble()
+                    )
+                }
             }
-
-            val body = response.body?.string() ?: return@withContext emptyList()
-            android.util.Log.d("KakaoSearch", "응답: $body")
-
-            val json = JSONObject(body)
-            val documents = json.getJSONArray("documents")
-
-            List(documents.length()) { i ->
-                val doc = documents.getJSONObject(i)
-                AddressResult(
-                    name = doc.getString("place_name"),
-                    address = doc.optString("road_address_name").ifEmpty {
-                        doc.getString("address_name")
-                    },
-                    lat = doc.getString("y").toDouble(),
-                    lng = doc.getString("x").toDouble()
-                )
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("KakaoSearch", "예외: ${e.message}", e)
+        } catch (networkError: IOException) {
+            Log.w(KAKAO_SEARCH_TAG, "Network failure while calling Kakao local search.", networkError)
+            emptyList()
+        } catch (error: Exception) {
+            Log.w(KAKAO_SEARCH_TAG, "Unexpected search failure.", error)
             emptyList()
         }
     }
@@ -111,21 +153,24 @@ fun AddressSearchDialog(
                         singleLine = true
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(onClick = {
-                        if (!isSearchEnabled) {
-                            errorMsg = disabledMessage
-                            return@IconButton
-                        }
-                        if (searchText.isNotBlank()) {
-                            scope.launch {
-                                isLoading = true
-                                errorMsg = ""
-                                results = searchAddress(searchText)
-                                isLoading = false
-                                if (results.isEmpty()) errorMsg = noResultsMessage
+                    IconButton(
+                        onClick = {
+                            if (!isSearchEnabled) {
+                                errorMsg = disabledMessage
+                                return@IconButton
                             }
-                        }
-                    }, enabled = searchText.isNotBlank()) {
+                            if (searchText.isNotBlank()) {
+                                scope.launch {
+                                    isLoading = true
+                                    errorMsg = ""
+                                    results = searchAddress(searchText)
+                                    isLoading = false
+                                    if (results.isEmpty()) errorMsg = noResultsMessage
+                                }
+                            }
+                        },
+                        enabled = searchText.isNotBlank()
+                    ) {
                         Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search))
                     }
                 }
@@ -136,7 +181,6 @@ fun AddressSearchDialog(
                         color = Color.Gray,
                         modifier = Modifier.padding(top = 8.dp)
                     )
-                } else {
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -164,16 +208,8 @@ fun AddressSearchDialog(
                                         .clickable { onAddressSelected(result) }
                                         .padding(vertical = 8.dp, horizontal = 4.dp)
                                 ) {
-                                    Text(
-                                        result.name,
-                                        fontWeight = FontWeight.Medium,
-                                        fontSize = 15.sp
-                                    )
-                                    Text(
-                                        result.address,
-                                        fontSize = 12.sp,
-                                        color = Color.Gray
-                                    )
+                                    Text(result.name, fontWeight = FontWeight.Medium, fontSize = 15.sp)
+                                    Text(result.address, fontSize = 12.sp, color = Color.Gray)
                                 }
                                 HorizontalDivider()
                             }

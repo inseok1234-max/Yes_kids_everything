@@ -1,6 +1,5 @@
 package com.ois.stickymemo.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -8,9 +7,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,26 +20,26 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,25 +64,31 @@ fun RestaurantListScreen(
     val allTags by viewModel.allTags.collectAsState()
     val sortOrder by viewModel.sortOrder.collectAsState()
     val selectedTag by viewModel.selectedTag.collectAsState()
+    var query by remember { mutableStateOf("") }
+
+    val visiblePlaces = restaurants.filter { place ->
+        query.isBlank() ||
+            place.name.contains(query, ignoreCase = true) ||
+            place.location.contains(query, ignoreCase = true) ||
+            place.review.contains(query, ignoreCase = true) ||
+            place.tags.contains(query, ignoreCase = true) ||
+            place.recipeTitle.contains(query, ignoreCase = true)
+    }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("장소", style = MaterialTheme.typography.titleLarge)
-                        Text(
-                            "다시 찾고 싶은 장소들",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+            StickyTopBar(
+                title = "장소",
+                subtitle = "다시 찾고 싶은 곳 ${restaurants.size}개"
             )
         },
         floatingActionButton = {
             if (showFab) {
-                FloatingActionButton(onClick = onAddClick) {
+                FloatingActionButton(
+                    onClick = onAddClick,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ) {
                     Icon(Icons.Default.Add, contentDescription = "장소 추가")
                 }
             }
@@ -94,6 +101,9 @@ fun RestaurantListScreen(
                 .fillMaxSize()
         ) {
             PlacesFilterBar(
+                query = query,
+                onQueryChange = { query = it },
+                visibleCount = visiblePlaces.size,
                 allTags = allTags,
                 sortOrder = sortOrder,
                 selectedTag = selectedTag,
@@ -101,27 +111,31 @@ fun RestaurantListScreen(
                 onTagSelected = viewModel::setTagFilter
             )
 
-            if (restaurants.isEmpty()) {
+            if (visiblePlaces.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(StickySpacing.lg),
+                        .padding(StickyLayout.screenPadding),
                     contentAlignment = Alignment.Center
                 ) {
                     StickyEmptyState(
                         icon = Icons.Default.Place,
-                        title = "저장한 장소가 없습니다",
-                        message = "카페, 병원, 여행지, 거래처처럼 다시 찾고 싶은 장소를 남겨보세요.",
+                        title = if (restaurants.isEmpty()) "저장한 장소가 없습니다" else "맞는 장소가 없습니다",
+                        message = if (restaurants.isEmpty()) {
+                            "카페, 병원, 여행지처럼 다시 찾고 싶은 장소를 기록해보세요."
+                        } else {
+                            "검색어나 태그를 바꿔 다시 찾아보세요."
+                        },
                         actionLabel = "장소 기록하기",
                         onAction = onAddClick
                     )
                 }
             } else {
                 LazyColumn(
-                    contentPadding = PaddingValues(StickySpacing.lg),
-                    verticalArrangement = Arrangement.spacedBy(StickySpacing.lg)
+                    contentPadding = PaddingValues(StickyLayout.screenPadding),
+                    verticalArrangement = Arrangement.spacedBy(StickySpacing.sm)
                 ) {
-                    items(restaurants, key = { it.id }) { restaurant ->
+                    items(visiblePlaces, key = { it.id }) { restaurant ->
                         RestaurantCard(
                             restaurant = restaurant,
                             onClick = { onItemClick(restaurant) }
@@ -135,6 +149,9 @@ fun RestaurantListScreen(
 
 @Composable
 private fun PlacesFilterBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    visibleCount: Int,
     allTags: List<String>,
     sortOrder: RestaurantSortOrder,
     selectedTag: String?,
@@ -142,37 +159,46 @@ private fun PlacesFilterBar(
     onTagSelected: (String?) -> Unit
 ) {
     Column(
-        modifier = Modifier.padding(horizontal = StickySpacing.lg, vertical = StickySpacing.sm),
+        modifier = Modifier.padding(horizontal = StickyLayout.screenPadding, vertical = StickySpacing.sm),
         verticalArrangement = Arrangement.spacedBy(StickySpacing.sm)
     ) {
+        StickySearchBar(
+            value = query,
+            onValueChange = onQueryChange,
+            label = "장소명, 주소, 태그 검색",
+            leadingIcon = Icons.Default.Search
+        )
+        Text(
+            "${visibleCount}개 장소 표시",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Row(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(StickySpacing.sm),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            FilterChip(
+            StickyFilterChip(
                 selected = sortOrder == RestaurantSortOrder.LATEST,
                 onClick = { onSortSelected(RestaurantSortOrder.LATEST) },
-                label = { Text("최근 방문") }
+                label = "최근 방문"
             )
-            FilterChip(
+            StickyFilterChip(
                 selected = sortOrder == RestaurantSortOrder.RATING,
                 onClick = { onSortSelected(RestaurantSortOrder.RATING) },
-                label = { Text("평점 높은 순") },
-                leadingIcon = {
-                    Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(StickyIconSize.sm))
-                }
+                label = "평점 높은 순",
+                icon = Icons.Default.Star
             )
-            FilterChip(
+            StickyFilterChip(
                 selected = selectedTag == null,
                 onClick = { onTagSelected(null) },
-                label = { Text("전체") }
+                label = "전체"
             )
             allTags.forEach { tag ->
-                FilterChip(
+                StickyFilterChip(
                     selected = selectedTag == tag,
                     onClick = { onTagSelected(if (selectedTag == tag) null else tag) },
-                    label = { Text(tag) }
+                    label = tag
                 )
             }
         }
@@ -185,65 +211,83 @@ fun RestaurantCard(
     onClick: () -> Unit
 ) {
     val firstImage = restaurant.imageUris.split(",").firstOrNull { it.isNotBlank() }
-    StickyCard(
+    var imageLoadFailed by remember(firstImage) { mutableStateOf(false) }
+    val tags = restaurant.tags.split(",").map { it.trim() }.filter { it.isNotBlank() }
+    val fallbackMeta = restaurant.location.ifBlank {
+        tags.take(2).joinToString("  ") { "#$it" }
+    }
+
+    StickySoftCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
         contentPadding = 0.dp
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1.7f)
-                .clip(RoundedCornerShape(topStart = StickyRadius.card, topEnd = StickyRadius.card))
+        Row(
+            modifier = Modifier.padding(StickySpacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(StickySpacing.md),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            if (firstImage != null) {
-                AsyncImage(
-                    model = firstImage,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.linearGradient(
-                                listOf(
-                                    MaterialTheme.colorScheme.secondaryContainer,
-                                    MaterialTheme.colorScheme.primaryContainer
-                                )
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Image,
+            Box(
+                modifier = Modifier
+                    .size(76.dp)
+                    .clip(RoundedCornerShape(StickyRadius.card))
+            ) {
+                if (firstImage != null && !imageLoadFailed) {
+                    AsyncImage(
+                        model = firstImage,
                         contentDescription = null,
-                        modifier = Modifier.size(StickyIconSize.empty),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        onError = { imageLoadFailed = true }
+                    )
+                } else {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.surfaceVariant
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.Place,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(StickySpacing.xs)
+            ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        restaurant.name.ifBlank { "장소 이름 없음" },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "방문 ${formatVisitedDate(restaurant.visitedAt)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (restaurant.recipeUrl.isNotBlank()) {
+                    Icon(
+                        Icons.Default.Link,
+                        contentDescription = null,
+                        modifier = Modifier.size(StickyIconSize.md),
+                        tint = MaterialTheme.colorScheme.primary
                     )
                 }
             }
-            RatingBadge(
-                rating = restaurant.rating,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(StickySpacing.md)
-            )
-        }
-
-        Column(
-            modifier = Modifier.padding(StickySpacing.lg),
-            verticalArrangement = Arrangement.spacedBy(StickySpacing.sm)
-        ) {
-            Text(
-                restaurant.name.ifBlank { "장소 이름 없음" },
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
             if (restaurant.location.isNotBlank()) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -259,35 +303,27 @@ fun RestaurantCard(
                         restaurant.location,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
             }
-            if (restaurant.review.isNotBlank()) {
-                Text(
-                    restaurant.review,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            val tags = restaurant.tags.split(",").map { it.trim() }.filter { it.isNotBlank() }
-            if (tags.isNotEmpty()) {
                 Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(StickySpacing.xs)
+                    horizontalArrangement = Arrangement.spacedBy(StickySpacing.sm),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    tags.take(8).forEach { tag ->
-                        RecordTypeChip(label = "#$tag")
+                    RatingBadge(rating = restaurant.rating)
+                    tags.firstOrNull()?.let { tag ->
+                        Text(
+                            "#$tag",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }
-            Text(
-                "방문 ${formatVisitedDate(restaurant.visitedAt)}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }
@@ -300,8 +336,9 @@ private fun RatingBadge(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(StickyRadius.chip),
-        color = Color(0xFFFFF0C2),
-        tonalElevation = StickyElevation.floating
+        color = MaterialTheme.colorScheme.primary,
+        tonalElevation = StickyElevation.flat,
+        shadowElevation = StickyElevation.floating
     ) {
         Row(
             modifier = Modifier.padding(horizontal = StickySpacing.sm, vertical = StickySpacing.xs),
@@ -312,13 +349,13 @@ private fun RatingBadge(
                 Icons.Default.Star,
                 contentDescription = null,
                 modifier = Modifier.size(StickyIconSize.sm),
-                tint = Color(0xFFE0A100)
+                tint = MaterialTheme.colorScheme.onPrimary
             )
             Text(
                 String.format(Locale.KOREA, "%.1f", rating),
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF4D3900)
+                color = MaterialTheme.colorScheme.onPrimary
             )
         }
     }

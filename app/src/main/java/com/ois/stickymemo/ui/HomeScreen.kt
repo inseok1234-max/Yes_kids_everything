@@ -3,8 +3,10 @@ package com.ois.stickymemo.ui
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,8 +15,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
@@ -23,19 +27,18 @@ import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.StickyNote2
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.ois.stickymemo.data.Memo
 import com.ois.stickymemo.data.Restaurant
 
@@ -59,17 +62,9 @@ fun HomeScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("StickyMemo", style = MaterialTheme.typography.titleLarge)
-                        Text(
-                            "생각나는 순간 바로 붙이는 기록",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+            StickyTopBar(
+                title = "StickyMemo",
+                subtitle = "바로 쓰고 다시 찾는 시작 화면"
             )
         },
         containerColor = MaterialTheme.colorScheme.background
@@ -78,8 +73,8 @@ fun HomeScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize(),
-            contentPadding = PaddingValues(StickySpacing.lg),
-            verticalArrangement = Arrangement.spacedBy(StickySpacing.lg)
+            contentPadding = PaddingValues(StickyLayout.screenPadding),
+            verticalArrangement = Arrangement.spacedBy(StickyLayout.sectionGap)
         ) {
             item {
                 AnimatedVisibility(
@@ -91,14 +86,9 @@ fun HomeScreen(
             }
 
             if (pinnedRecords.isNotEmpty()) {
-                item {
-                    SectionHeader(
-                        title = "고정한 기록",
-                        subtitle = "자주 꺼내 보는 기록"
-                    )
-                }
+                item { StickySectionHeader(title = "고정 기록", subtitle = "자주 다시 보는 기록") }
                 items(pinnedRecords, key = { "pinned_${it.id}" }) { record ->
-                    HomeRecordRow(
+                    TimelineRecordRow(
                         record = record,
                         emphasized = true,
                         onClick = { openRecord(record, onMemoClick, onPlaceClick) }
@@ -106,25 +96,20 @@ fun HomeScreen(
                 }
             }
 
-            item {
-                SectionHeader(
-                    title = "최근 기록",
-                    subtitle = "가장 최근에 붙잡은 생각과 장소"
-                )
-            }
+            item { StickySectionHeader(title = "최근 기록", subtitle = "방금 남긴 생각과 할 일") }
             if (recentRecords.isEmpty()) {
                 item {
                     StickyEmptyState(
                         icon = Icons.Default.StickyNote2,
                         title = "아직 기록이 없습니다",
-                        message = "떠오른 생각을 짧게 남기면 여기에 다시 보여드릴게요.",
-                        actionLabel = "빠른 메모 열기",
+                        message = "첫 메모를 남기면 여기서 바로 다시 볼 수 있습니다.",
+                        actionLabel = "첫 메모 남기기",
                         onAction = onQuickMemo
                     )
                 }
             } else {
                 items(recentRecords, key = { "recent_${it.id}" }) { record ->
-                    HomeRecordRow(
+                    TimelineRecordRow(
                         record = record,
                         onClick = { openRecord(record, onMemoClick, onPlaceClick) }
                     )
@@ -132,16 +117,16 @@ fun HomeScreen(
             }
 
             if (todayChecklist.isNotEmpty()) {
-                item { SectionHeader(title = "오늘 체크할 일") }
+                item { StickySectionHeader(title = "오늘 체크할 일") }
                 items(todayChecklist, key = { "task_${it.id}" }) { record ->
-                    HomeRecordRow(record = record, onClick = { openRecord(record, onMemoClick, onPlaceClick) })
+                    TimelineRecordRow(record = record, onClick = { openRecord(record, onMemoClick, onPlaceClick) })
                 }
             }
 
             if (recentPlaces.isNotEmpty()) {
-                item { SectionHeader(title = "최근 장소", subtitle = "다시 가고 싶은 곳") }
+                item { StickySectionHeader(title = "최근 장소", subtitle = "다시 찾기 쉬운 장소 기록") }
                 items(recentPlaces, key = { "place_${it.id}" }) { record ->
-                    HomeRecordRow(record = record, onClick = { openRecord(record, onMemoClick, onPlaceClick) })
+                    CompactPlaceRow(record = record, onClick = { openRecord(record, onMemoClick, onPlaceClick) })
                 }
             }
 
@@ -152,7 +137,7 @@ fun HomeScreen(
 
 @Composable
 private fun QuickCaptureCard(onQuickMemo: () -> Unit) {
-    StickyCard(contentPadding = StickySpacing.xl) {
+    StickySoftCard(contentPadding = StickySpacing.lg) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -160,27 +145,40 @@ private fun QuickCaptureCard(onQuickMemo: () -> Unit) {
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(StickySpacing.sm)
+                horizontalArrangement = Arrangement.spacedBy(StickySpacing.md)
             ) {
-                Icon(Icons.Default.Bolt, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Text("빠른 기록", style = MaterialTheme.typography.titleMedium)
-            }
-            TextButton(onClick = onQuickMemo) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Text("메모")
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Icon(
+                        Icons.Default.Bolt,
+                        contentDescription = null,
+                        modifier = Modifier.padding(StickySpacing.sm),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Column {
+                    Text("빠른 기록", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        "생각난 순간 바로 남기세요.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
-        Spacer(modifier = Modifier.height(StickySpacing.sm))
-        Text(
-            "짧게 적고 바로 저장하세요. 정리는 나중에 해도 괜찮습니다.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+        Spacer(modifier = Modifier.height(StickySpacing.md))
+        StickyPrimaryButton(
+            label = "바로 메모 쓰기",
+            onClick = onQuickMemo,
+            icon = Icons.Default.Add
         )
     }
 }
 
 @Composable
-private fun HomeRecordRow(
+private fun TimelineRecordRow(
     record: RecordCardUiModel,
     emphasized: Boolean = false,
     onClick: () -> Unit
@@ -189,32 +187,49 @@ private fun HomeRecordRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(StickyRadius.card),
-        tonalElevation = if (emphasized) StickyElevation.floating else StickyElevation.card,
-        color = if (emphasized) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)
-        else MaterialTheme.colorScheme.surface
+        color = if (emphasized) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surface,
+        tonalElevation = StickyElevation.flat,
+        shadowElevation = StickyElevation.flat
     ) {
-        ListItem(
-            headlineContent = {
-                Text(record.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            },
-            supportingContent = {
-                Text(record.subtitle, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            },
-            leadingContent = {
+        Column {
+            Row(
+                modifier = Modifier.padding(horizontal = StickySpacing.md, vertical = StickySpacing.sm),
+                horizontalArrangement = Arrangement.spacedBy(StickySpacing.md),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Icon(
                     if (record.isPinned) Icons.Default.PushPin else record.icon,
                     contentDescription = null,
+                    modifier = Modifier.size(StickyIconSize.sm),
                     tint = MaterialTheme.colorScheme.primary
                 )
-            },
-            trailingContent = {
-                Column(horizontalAlignment = Alignment.End) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(StickySpacing.xs)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Text(
+                            record.title,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            record.meta,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                     Text(
-                        record.meta,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
+                        record.subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         record.dateLabel,
@@ -223,7 +238,46 @@ private fun HomeRecordRow(
                     )
                 }
             }
-        )
+            StickyDivider(modifier = Modifier.padding(start = 44.dp))
+        }
+    }
+}
+
+@Composable
+private fun CompactPlaceRow(
+    record: RecordCardUiModel,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(StickyRadius.largeCard),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = StickyElevation.card
+    ) {
+        Row(
+            modifier = Modifier.padding(StickySpacing.md),
+            horizontalArrangement = Arrangement.spacedBy(StickySpacing.md),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Place, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(record.title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    record.subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Text(
+                record.dateLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 

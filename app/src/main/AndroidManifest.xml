@@ -21,6 +21,7 @@
     <!-- 백그라운드 서비스 (Geofencing) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <!-- 통화 상태 감지 -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
@@ -87,7 +88,12 @@
         <!-- 통화 오버레이 서비스 -->
         <service
             android:name=".CallOverlayService"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Shows a small call memo overlay while the user is on a phone call." />
+        </service>
 
         <receiver
             android:name=".widget.QuickCaptureWidgetReceiver"

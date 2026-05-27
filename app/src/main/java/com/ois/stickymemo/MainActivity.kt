@@ -13,11 +13,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Call
@@ -31,12 +32,13 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.StickyNote2
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -50,7 +52,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -68,7 +69,9 @@ import com.ois.stickymemo.ui.RestaurantDetailScreen
 import com.ois.stickymemo.ui.RestaurantEditScreen
 import com.ois.stickymemo.ui.RestaurantListScreen
 import com.ois.stickymemo.ui.SettingsScreen
+import com.ois.stickymemo.ui.StickyActionCard
 import com.ois.stickymemo.ui.StickyRadius
+import com.ois.stickymemo.ui.StickySpacing
 import com.ois.stickymemo.ui.getCurrentLocation
 import com.ois.stickymemo.ui.theme.StickyMemoTheme
 import com.ois.stickymemo.viewmodel.MemoViewModel
@@ -155,9 +158,11 @@ fun StickyMemoApp(
     var selectedLocationName by remember { mutableStateOf<String?>(null) }
     var showContactPicker by remember { mutableStateOf(false) }
     var showCaptureSheet by remember { mutableStateOf(false) }
+    var memoDrafts by remember { mutableStateOf<Map<String, Memo>>(emptyMap()) }
 
-    val currentLocationFormat = stringResource(R.string.current_location_format)
-    val sharedRecipeTitle = stringResource(R.string.shared_recipe_title)
+    fun memoDraftKey(memo: Memo?, type: MemoType): String {
+        return memo?.id?.takeIf { it != 0 }?.let { "memo-$it" } ?: "new-${type.name}"
+    }
 
     fun resetMemoDraftContext() {
         selectedContactName = null
@@ -181,34 +186,28 @@ fun StickyMemoApp(
                 onSuccess = { lat, lng ->
                     selectedLat = lat
                     selectedLng = lng
-                    selectedLocationName = currentLocationFormat.format(
-                        String.format("%.4f", lat),
-                        String.format("%.4f", lng)
-                    )
+                    selectedLocationName = "현재 위치 (${String.format("%.4f", lat)}, ${String.format("%.4f", lng)})"
                 },
-                onFailure = { }
+                onFailure = {}
             )
         }
     }
     val backgroundLocationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { }
+    ) {}
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { }
+    ) {}
     val callPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { }
+    ) {}
     val overlaySettingsLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
-    ) { }
+    ) {}
 
     fun requestNotificationPermissionIfNeeded() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) != PackageManager.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
@@ -216,22 +215,15 @@ fun StickyMemoApp(
 
     fun requestLocationForMemo() {
         requestNotificationPermissionIfNeeded()
-        if (ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             getCurrentLocation(
                 context = context,
                 onSuccess = { lat, lng ->
                     selectedLat = lat
                     selectedLng = lng
-                    selectedLocationName = currentLocationFormat.format(
-                        String.format("%.4f", lat),
-                        String.format("%.4f", lng)
-                    )
+                    selectedLocationName = "현재 위치 (${String.format("%.4f", lat)}, ${String.format("%.4f", lng)})"
                 },
-                onFailure = { }
+                onFailure = {}
             )
         } else {
             locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -240,11 +232,22 @@ fun StickyMemoApp(
 
     fun requestBackgroundLocationOptInIfNeeded() {
         requestNotificationPermissionIfNeeded()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.ACCESS_BACKGROUND_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestLocationForMemo()
+            return
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED
+        ) {
+            overlaySettingsLauncher.launch(
+                Intent(
+                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    android.net.Uri.parse("package:${context.packageName}")
+                )
+            )
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED
         ) {
             backgroundLocationPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
         } else {
@@ -263,9 +266,7 @@ fun StickyMemoApp(
         if (deniedPermissions.isNotEmpty()) {
             callPermissionLauncher.launch(deniedPermissions.toTypedArray())
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-            !android.provider.Settings.canDrawOverlays(context)
-        ) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !android.provider.Settings.canDrawOverlays(context)) {
             overlaySettingsLauncher.launch(
                 Intent(
                     android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -273,6 +274,15 @@ fun StickyMemoApp(
                 )
             )
         }
+    }
+
+    fun openAppPermissionSettings() {
+        overlaySettingsLauncher.launch(
+            Intent(
+                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                android.net.Uri.parse("package:${context.packageName}")
+            )
+        )
     }
 
     fun openMemoEditor(type: MemoType) {
@@ -290,12 +300,7 @@ fun StickyMemoApp(
 
     LaunchedEffect(initialSharedUrl) {
         if (initialSharedUrl.isNotBlank()) {
-            openPlaceEditor(
-                Restaurant(
-                    recipeUrl = initialSharedUrl,
-                    recipeTitle = sharedRecipeTitle
-                )
-            )
+            openPlaceEditor(Restaurant(recipeUrl = initialSharedUrl, recipeTitle = "공유한 링크"))
         }
     }
 
@@ -305,6 +310,7 @@ fun StickyMemoApp(
             "checklist" -> openMemoEditor(MemoType.CHECKLIST)
             "place" -> openPlaceEditor()
             "location" -> openMemoEditor(MemoType.LOCATION)
+            "call" -> openMemoEditor(MemoType.CALL)
         }
     }
 
@@ -355,13 +361,20 @@ fun StickyMemoApp(
     Scaffold(
         bottomBar = {
             if (!isInNestedScreen) {
-                NavigationBar {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                     MainDestination.entries.forEach { destination ->
                         NavigationBarItem(
                             selected = currentDestination == destination,
                             onClick = { currentDestination = destination },
                             icon = { Icon(destination.icon, contentDescription = null) },
-                            label = { Text(destination.label) }
+                            label = { Text(destination.label) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                                selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                                indicatorColor = MaterialTheme.colorScheme.primary,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         )
                     }
                 }
@@ -370,18 +383,27 @@ fun StickyMemoApp(
         floatingActionButton = {
             if (!isInNestedScreen) {
                 val fabScale by animateFloatAsState(
-                    targetValue = if (showCaptureSheet) 0.92f else 1f,
+                    targetValue = if (showCaptureSheet) 0.94f else 1f,
                     animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
                     label = "global_fab_scale"
                 )
                 FloatingActionButton(
                     onClick = { showCaptureSheet = true },
+                    shape = RoundedCornerShape(StickyRadius.button),
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    elevation = FloatingActionButtonDefaults.elevation(
+                        defaultElevation = 1.dp,
+                        pressedElevation = 1.dp,
+                        focusedElevation = 1.dp,
+                        hoveredElevation = 1.dp
+                    ),
                     modifier = Modifier.graphicsLayer {
                         scaleX = fabScale
                         scaleY = fabScale
                     }
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "새 기록")
+                    Icon(Icons.Default.Add, contentDescription = "기록")
                 }
             }
         }
@@ -413,21 +435,25 @@ fun StickyMemoApp(
                         onRecordClick = { record ->
                             when (val source = record.source) {
                                 is RecordSource.MemoRecord -> {
-                                    memoScreen = Screen.Edit(
-                                        memo = source.memo,
-                                        type = source.memo.type
-                                    )
+                                    memoScreen = Screen.Edit(memo = source.memo, type = source.memo.type)
                                 }
                                 is RecordSource.PlaceRecord -> {
                                     currentDestination = MainDestination.PLACES
                                     restaurantScreen = RestaurantScreen.Detail(source.place)
                                 }
                             }
+                        },
+                        onMemoDelete = { memo ->
+                            memoViewModel.deleteMemo(memo)
+                            memoDrafts = memoDrafts - memoDraftKey(memo, memo.type)
                         }
                     )
 
-                    is Screen.Edit -> MemoEditRoute(
+                    is Screen.Edit -> {
+                        val draftKey = memoDraftKey(screen.memo, screen.type)
+                        MemoEditRoute(
                         screen = screen,
+                        draftMemo = memoDrafts[draftKey],
                         memos = memos,
                         isDarkTheme = isDarkTheme,
                         selectedContactName = selectedContactName,
@@ -440,22 +466,23 @@ fun StickyMemoApp(
                             if (memo.type == MemoType.LOCATION && memo.latitude != null && memo.longitude != null) {
                                 GeofenceHelper(context).addGeofence(memo)
                             }
+                            memoDrafts = memoDrafts - draftKey
                             memoScreen = Screen.List
+                        },
+                        onDraftChange = { draft ->
+                            memoDrafts = memoDrafts + (draftKey to draft)
                         },
                         onBack = { memoScreen = Screen.List },
                         onPickContact = {
-                            if (ContextCompat.checkSelfPermission(
-                                    context,
-                                    Manifest.permission.READ_CONTACTS
-                                ) == PackageManager.PERMISSION_GRANTED
-                            ) {
+                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
                                 showContactPicker = true
                             } else {
                                 contactPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
                             }
                         },
                         onPickLocation = { requestLocationForMemo() }
-                    )
+                        )
+                    }
                 }
 
                 MainDestination.PLACES -> when (val screen = restaurantScreen) {
@@ -497,8 +524,7 @@ fun StickyMemoApp(
                 MainDestination.SETTINGS -> SettingsScreen(
                     isDarkTheme = isDarkTheme,
                     onToggleDarkTheme = onToggleDarkTheme,
-                    onEnableCallMemo = { requestCallMemoOptInIfNeeded() },
-                    onEnableBackgroundLocation = { requestBackgroundLocationOptInIfNeeded() }
+                    onOpenPermissionSettings = { openAppPermissionSettings() }
                 )
             }
         }
@@ -508,6 +534,7 @@ fun StickyMemoApp(
 @Composable
 private fun MemoEditRoute(
     screen: Screen.Edit,
+    draftMemo: Memo?,
     memos: List<Memo>,
     isDarkTheme: Boolean,
     selectedContactName: String?,
@@ -516,18 +543,21 @@ private fun MemoEditRoute(
     selectedLng: Double?,
     selectedLocationName: String?,
     onSave: (Memo) -> Unit,
+    onDraftChange: (Memo) -> Unit,
     onBack: () -> Unit,
     onPickContact: () -> Unit,
     onPickLocation: () -> Unit
 ) {
     MemoEditScreen(
         memo = screen.memo,
+        draftMemo = draftMemo,
         memoType = screen.type,
         isDarkTheme = isDarkTheme,
         existingTags = memos.flatMap { memo ->
             memo.tags.split(",").map { it.trim() }.filter { it.isNotBlank() }
         }.distinct(),
         onSave = onSave,
+        onDraftChange = onDraftChange,
         onBack = onBack,
         onPickContact = onPickContact,
         onPickLocation = onPickLocation,
@@ -551,109 +581,55 @@ private fun QuickCaptureSheetPolished(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(
-            topStart = StickyRadius.sheet,
-            topEnd = StickyRadius.sheet
-        ),
-        scrimColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.35f)
+        shape = RoundedCornerShape(topStart = StickyRadius.sheet, topEnd = StickyRadius.sheet),
+        containerColor = MaterialTheme.colorScheme.background,
+        scrimColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.24f)
     ) {
-        Column(modifier = Modifier.padding(bottom = 24.dp)) {
-            ListItem(
-                headlineContent = { Text("빠른 메모") },
-                supportingContent = { Text("떠오른 내용을 바로 붙잡습니다") },
-                leadingContent = { Icon(Icons.Default.NoteAdd, contentDescription = null) },
-                modifier = Modifier.clickableNoIndication(onMemo)
+        Column(
+            modifier = Modifier
+                .padding(horizontal = StickySpacing.lg)
+                .padding(bottom = StickySpacing.xl),
+            verticalArrangement = Arrangement.spacedBy(StickySpacing.sm)
+        ) {
+            Text(
+                "무엇을 기록할까요?",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(top = StickySpacing.sm, bottom = StickySpacing.xs)
             )
-            ListItem(
-                headlineContent = { Text("체크리스트") },
-                supportingContent = { Text("해야 할 일을 항목으로 기록합니다") },
-                leadingContent = { Icon(Icons.Default.CheckBox, contentDescription = null) },
-                modifier = Modifier.clickableNoIndication(onChecklist)
+            StickyActionCard(
+                icon = Icons.Default.NoteAdd,
+                title = "빠른 메모",
+                description = "떠오른 내용을 바로 붙잡습니다.",
+                onClick = onMemo
             )
-            ListItem(
-                headlineContent = { Text("장소 기록") },
-                supportingContent = { Text("카페, 병원, 여행지, 거래처를 함께 기록합니다") },
-                leadingContent = { Icon(Icons.Default.Place, contentDescription = null) },
-                modifier = Modifier.clickableNoIndication(onPlace)
+            StickyActionCard(
+                icon = Icons.Default.CheckBox,
+                title = "체크리스트",
+                description = "해야 할 일을 항목으로 기록합니다.",
+                onClick = onChecklist
             )
-            ListItem(
-                headlineContent = { Text("위치 알림") },
-                supportingContent = { Text("장소에 도착했을 때 다시 볼 메모입니다") },
-                leadingContent = { Icon(Icons.Default.LocationOn, contentDescription = null) },
-                modifier = Modifier.clickableNoIndication(onLocation)
+            StickyActionCard(
+                icon = Icons.Default.Place,
+                title = "장소 기록",
+                description = "카페, 병원, 여행지를 남깁니다.",
+                onClick = onPlace
             )
-            ListItem(
-                headlineContent = { Text("통화 메모") },
-                supportingContent = { Text("고급 기능 권한 확인 후 사용할 수 있습니다") },
-                leadingContent = { Icon(Icons.Default.Call, contentDescription = null) },
-                modifier = Modifier.clickableNoIndication(onCall)
+            StickyActionCard(
+                icon = Icons.Default.LocationOn,
+                title = "위치 알림",
+                description = "장소에 도착했을 때 다시 봅니다.",
+                onClick = onLocation
             )
-            TextButton(
-                onClick = onDismiss,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            ) {
+            StickyActionCard(
+                icon = Icons.Default.Call,
+                title = "통화 메모",
+                description = "통화 직후 내용을 기록합니다.",
+                onClick = onCall
+            )
+            TextButton(onClick = onDismiss, modifier = Modifier.padding(top = StickySpacing.xs)) {
                 Icon(Icons.Default.Close, contentDescription = null)
-                Text("닫기", color = MaterialTheme.colorScheme.primary)
+                Text("닫기")
             }
         }
     }
 }
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun QuickCaptureSheet(
-    onDismiss: () -> Unit,
-    onMemo: () -> Unit,
-    onChecklist: () -> Unit,
-    onPlace: () -> Unit,
-    onLocation: () -> Unit,
-    onCall: () -> Unit
-) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.padding(bottom = 24.dp)) {
-            ListItem(
-                headlineContent = { Text("빠른 메모") },
-                supportingContent = { Text("떠오른 내용을 바로 붙잡습니다") },
-                leadingContent = { Icon(Icons.Default.NoteAdd, contentDescription = null) },
-                modifier = Modifier.clickableNoIndication(onMemo)
-            )
-            ListItem(
-                headlineContent = { Text("체크리스트") },
-                supportingContent = { Text("해야 할 일을 항목으로 기록합니다") },
-                leadingContent = { Icon(Icons.Default.CheckBox, contentDescription = null) },
-                modifier = Modifier.clickableNoIndication(onChecklist)
-            )
-            ListItem(
-                headlineContent = { Text("장소 기록") },
-                supportingContent = { Text("맛집, 카페, 병원, 거래처를 함께 기록합니다") },
-                leadingContent = { Icon(Icons.Default.Place, contentDescription = null) },
-                modifier = Modifier.clickableNoIndication(onPlace)
-            )
-            ListItem(
-                headlineContent = { Text("위치 알림") },
-                supportingContent = { Text("장소에 도착했을 때 다시 볼 메모입니다") },
-                leadingContent = { Icon(Icons.Default.LocationOn, contentDescription = null) },
-                modifier = Modifier.clickableNoIndication(onLocation)
-            )
-            ListItem(
-                headlineContent = { Text("통화 메모") },
-                supportingContent = { Text("고급 기능 권한 확인 후 사용할 수 있습니다") },
-                leadingContent = { Icon(Icons.Default.Call, contentDescription = null) },
-                modifier = Modifier.clickableNoIndication(onCall)
-            )
-            TextButton(
-                onClick = onDismiss,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            ) {
-                Icon(Icons.Default.Close, contentDescription = null)
-                Text("닫기", color = MaterialTheme.colorScheme.primary)
-            }
-        }
-    }
-}
-
-private fun Modifier.clickableNoIndication(onClick: () -> Unit): Modifier = this.then(
-    Modifier.padding(horizontal = 8.dp)
-).then(
-    Modifier.clickable(onClick = onClick)
-)

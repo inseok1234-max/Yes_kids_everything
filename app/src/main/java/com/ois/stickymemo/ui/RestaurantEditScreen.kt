@@ -2,6 +2,7 @@ package com.ois.stickymemo.ui
 
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -60,6 +61,7 @@ fun RestaurantEditScreen(
             else restaurant!!.imageUris.split(",").filter { it.isNotBlank() }
         )
     }
+    var removedImageUris by remember { mutableStateOf(emptyList<String>()) }
     var locationSearchResults by remember { mutableStateOf<List<AddressResult>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -71,8 +73,13 @@ fun RestaurantEditScreen(
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
     ) { uris: List<Uri> ->
-        val newUris = uris.map { it.toString() }
-        imageUris = (imageUris + newUris).distinct()
+        val copiedUris = uris.mapNotNull { uri ->
+            copyPlaceImageToInternalStorage(context, uri)
+        }
+        if (copiedUris.size < uris.size) {
+            Toast.makeText(context, "일부 사진을 저장하지 못했습니다.", Toast.LENGTH_SHORT).show()
+        }
+        imageUris = (imageUris + copiedUris).distinct()
     }
 
     Scaffold(
@@ -102,6 +109,9 @@ fun RestaurantEditScreen(
                             recipeUrl = recipeUrl.trim(),
                             recipeTitle = recipeTitle.trim()
                         )
+                        removedImageUris.forEach { uri ->
+                            deletePlaceImageFromInternalStorage(context, uri)
+                        }
                         onSave(r)
                     }) {
                         Text("저장", fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -327,16 +337,23 @@ fun RestaurantEditScreen(
                                     .clip(RoundedCornerShape(8.dp)),
                                 contentScale = ContentScale.Crop
                             )
-                            IconButton(
-                                onClick = { imageUris = imageUris - uri },
+                            FilledIconButton(
+                                onClick = {
+                                    imageUris = imageUris - uri
+                                    removedImageUris = (removedImageUris + uri).distinct()
+                                },
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
-                                    .size(24.dp)
+                                    .padding(4.dp)
+                                    .size(32.dp),
+                                colors = IconButtonDefaults.filledIconButtonColors(
+                                    containerColor = Color.Black.copy(alpha = 0.62f),
+                                    contentColor = Color.White
+                                )
                             ) {
                                 Icon(
                                     Icons.Default.Close,
                                     contentDescription = "삭제",
-                                    tint = Color.White,
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
